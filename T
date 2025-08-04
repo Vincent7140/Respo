@@ -1,0 +1,19 @@
+algré ses résultats encourageants, un problème est rencontré concernant la génération de vues nouvelles.*
+
+Une fois entraîné, le modèle a besoin de connaître la **pose** de la caméra pour déterminer les rayons à tracer lors de la synthèse d'une nouvelle vue. Les NeRFs classiques utilisent des poses de caméra **pinhole**, définies par une position et une orientation explicites dans un référentiel euclidien local. Ce type de pose est relativement simple à manipuler et peut être estimé ou simulé sans grande difficulté.
+
+En revanche, dans le cadre d’un NeRF satellitaire basé sur des **modèles RPC**, la pose n’est pas exprimée de manière explicite. Le modèle ne dispose pas directement d’une matrice de transformation (comme dans un système pinhole), mais s’appuie sur une **paramétrisation polynomiale** complexe, spécifique à chaque image et dépendante de nombreux facteurs orbitaux et géographiques. Cette représentation rend la manipulation de nouvelles poses particulièrement délicate, notamment pour :
+
+* **générer des vues synthétiques arbitraires** (ex. vues obliques ou à un instant différent),
+* **positionner virtuellement une caméra à un endroit donné** (en lat/lon/alt) avec une orientation souhaitée,
+* **conserver la cohérence géométrique des rayons** avec ceux vus pendant l'entraînement.
+
+Contrairement aux caméras pinhole, les modèles RPC ne permettent pas de simuler simplement une pose virtuelle : il faudrait, pour ce faire, inverser ou approximer la relation RPC dans l’autre sens (2D → 3D) pour produire des rayons réalistes à partir d’une pose artificielle. Ce processus est peu trivial, souvent imprécis, et mal conditionné.
+
+Ainsi, **générer des vues nouvelles dans un espace entraîné avec des poses RPC constitue un défi majeur**, car il implique soit :
+
+* de disposer d’un **modèle RPC valide pour la nouvelle vue**, ce qui est rarement le cas pour des vues synthétiques,
+* soit de recourir à une **approximation par un modèle pinhole**, en projetant la scène reconstruite depuis une nouvelle pose artificielle, mais au risque de **perdre la cohérence avec l'espace appris**.
+
+Ce verrou méthodologique limite donc la capacité d’exploration du modèle au-delà des vues déjà connues, et constitue un axe important d'amélioration pour permettre une généralisation plus fluide.
+
