@@ -17,3 +17,4 @@ Ainsi, **générer des vues nouvelles dans un espace entraîné avec des poses R
 
 Ce verrou méthodologique limite donc la capacité d’exploration du modèle au-delà des vues déjà connues, et constitue un axe important d'amélioration pour permettre une généralisation plus fluide.
 
+Mais on ne peut pas simplement générer de nouvelles poses RPC arbitraires, car les coefficients RPC sont calibrés spécifiquement pour une acquisition satellite donnée, incluant sa position orbitale, son attitude, et d'autres paramètres physiques. Toute nouvelle pose nécessite soit un recalcul complet à partir de correspondances 2D–3D réalistes, soit une acquisition réelle disposant de ses propres métadonnées.
