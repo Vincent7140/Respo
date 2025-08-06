@@ -23,3 +23,122 @@ En prenant le point moyen, on place l’origine au centre géographique du group
 
 
 
+Pour cela, la scène est rendue depuis une vue verticale (nadir) afin de générer un modèle numérique d’élévation (DEM) estimé. L’altitude prédite pour chaque pixel 
+ℎ
+^
+h
+^
+  est calculée comme la somme pondérée des altitudes échantillonnées 
+ℎ
+𝑖
+h 
+i
+​
+  le long du rayon :
+
+ℎ
+^
+=
+∑
+𝑖
+=
+1
+𝑁
+𝑠
+𝑤
+𝑖
+ 
+ℎ
+𝑖
+h
+^
+ = 
+i=1
+∑
+N 
+s
+​
+ 
+​
+ w 
+i
+​
+ h 
+i
+​
+ 
+où les poids 
+𝑤
+𝑖
+w 
+i
+​
+  proviennent de l’intégration volumétrique NeRF et indiquent la contribution de chaque échantillon à la surface observée.
+Cette carte d’altitude prédite est comparée pixel par pixel au DEM de référence issu de mesures LiDAR, en prenant la moyenne des écarts absolus :
+
+𝑀
+𝐴
+𝐸
+=
+1
+𝑁
+∑
+𝑗
+=
+1
+𝑁
+∣
+ℎ
+^
+𝑗
+−
+ℎ
+𝑗
+𝐺
+𝑇
+∣
+MAE= 
+N
+1
+​
+  
+j=1
+∑
+N
+​
+  
+​
+  
+h
+^
+  
+j
+​
+ −h 
+j
+GT
+​
+  
+​
+ 
+où 
+ℎ
+𝑗
+𝐺
+𝑇
+h 
+j
+GT
+​
+  est l’altitude réelle et 
+𝑁
+N le nombre de pixels valides. Le résultat fournit une mesure globale de l’erreur altimétrique en mètres.
+
+Veux-tu que je te fasse aussi une version schéma visuel pour illustrer ce processus dans ton rapport ?
+
+
+
+
+
+
+
