@@ -1,0 +1,25 @@
+
+Les coordonnées GPS (latitude, longitude, altitude) des points au sol sont d’abord converties en coordonnées ECEF (Earth-Centered, Earth-Fixed), ce qui donne leur position cartésienne par rapport au centre de la Terre.
+À partir de l’azimuth et de l’élévation mesurés, on calcule un vecteur direction pour chaque point au sol vers le satellite, puis on détermine la position approximative du satellite en ajoutant à la position ECEF du point au sol ce vecteur multiplié par la distance satellite-sol.
+
+Pour représenter la scène dans un repère local plus intuitif, on calcule le point moyen des positions ECEF au sol, qui devient l’origine du repère ENU (Est, Nord, Up). Toutes les coordonnées sont alors projetées dans ce repère, où Up correspond à la verticale réelle. Cette transformation permet de visualiser la disposition relative des points et satellites autour d’un centre commun, avec des distances exprimées en mètres ou en kilomètres.
+
+
+
+
+
+
+
+
+On calcule un point moyen pour trois raisons principales :
+
+Avoir un repère local centré
+
+Le système ENU (Est-Nord-Up) doit être défini par un point d’origine avec latitude/longitude/altitude connues.
+
+Si on prend un des points au sol comme origine, les autres se retrouveront éloignés ou asymétriques dans le graphique.
+
+En prenant le point moyen, on place l’origine au centre géographique du groupe de points, ce qui équilibre la vue.
+
+
+
