@@ -1,0 +1,7 @@
+Dans les modèles **NeRF** (*Neural Radiance Fields*), l’entraînement ne se fait pas directement sur l’intégralité des pixels de toutes les images à chaque itération, mais sur un **sous-ensemble de pixels**.
+Chaque pixel sélectionné correspond à un **rayon 3D** qui part du centre de projection de la caméra et traverse ce pixel dans l’espace. Ce rayon est ensuite échantillonné en plusieurs points le long de sa trajectoire pour estimer la couleur et la géométrie de la scène.
+
+Dans le modèle **Shadow-NeRF**, comme dans la majorité des variantes NeRF standards, la sélection des rayons est effectuée **de manière aléatoire** parmi l’ensemble des pixels disponibles dans les images d’entraînement.
+Le processus est le suivant :
+
+Ces approches permettent de concentrer l’apprentissage sur les régions clés, améliorant la précision et la vitesse de convergence du modèle.
