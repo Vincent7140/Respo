@@ -1,7 +1,16 @@
-Dans les modèles **NeRF** (*Neural Radiance Fields*), l’entraînement ne se fait pas directement sur l’intégralité des pixels de toutes les images à chaque itération, mais sur un **sous-ensemble de pixels**.
-Chaque pixel sélectionné correspond à un **rayon 3D** qui part du centre de projection de la caméra et traverse ce pixel dans l’espace. Ce rayon est ensuite échantillonné en plusieurs points le long de sa trajectoire pour estimer la couleur et la géométrie de la scène.
 
-Dans le modèle **Shadow-NeRF**, comme dans la majorité des variantes NeRF standards, la sélection des rayons est effectuée **de manière aléatoire** parmi l’ensemble des pixels disponibles dans les images d’entraînement.
-Le processus est le suivant :
+Cette partie vise à analyser la convergence du modèle au cours de l’entraînement, dans l’objectif d’évaluer s’il est possible de réduire le nombre d’itérations sans compromettre la qualité des résultats.
+L’idée est d’observer l’évolution des différentes métriques (PSNR, SSIM, erreur d’altitude) pour identifier à quel moment elles atteignent un plateau, signe que le modèle a suffisamment appris. Une convergence rapide permettrait d’envisager un arrêt anticipé de l’entraînement, réduisant ainsi le temps de calcul sans perte significative de performance.
 
-Ces approches permettent de concentrer l’apprentissage sur les régions clés, améliorant la précision et la vitesse de convergence du modèle.
+---
+
+
+
+* **PSNR et SSIM** : montrent une stabilisation progressive ; le gain après un certain nombre d’itérations devient marginal.
+* **Erreur d’altitude** : diminue fortement au début, puis tend vers une valeur stable, ce qui confirme la convergence du modèle.
+
+La métrique MAE n’a pas été retenue ici. En effet, pour la calculer, une scène doit être générée selon une vue parfaitement verticale (nadir), permettant ensuite de produire un modèle numérique d’élévation (DEM). Chaque pixel de ce DEM est ensuite comparé à un DEM de référence obtenu par mesure LIDAR, servant de vérité terrain. Or, l’objectif de cette expérience est d’évaluer la capacité du modèle à reconstruire la scène depuis une vue intermédiaire (image 20), située entre trois vues proches angulairement. La scène générée n’étant pas nadirale, la MAE ne serait pas représentative dans ce cas précis.
+
+Les résultats obtenus sont encourageants, avec des performances parfois meilleures que celles issues de l’entraînement avec 20 images précédemment utilisées. On observe cependant une reconstruction inégale selon les zones de l’image, ce qui souligne des limites dans la représentativité du modèle.
+
+Cela met en évidence un compromis à trouver : avec un jeu de données restreint, concentré sur une zone réduite et des vues angulairement proches, il est possible d'obtenir une reconstruction partiellement fidèle. Mais pour améliorer la cohérence globale de la scène, une meilleure couverture angulaire ou spatiale pourrait être nécessaire.
