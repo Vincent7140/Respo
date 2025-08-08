@@ -1,0 +1,5 @@
+Une représentation explicite en 3D décrit directement la forme géométrique d’un objet ou d’une scène à l’aide d’éléments visibles et manipulables, comme des sommets, des arêtes, des faces ou des volumes discrets. Elle encode donc explicitement la position et l’organisation des éléments qui constituent la surface ou le volume.
+
+
+
+Une représentation implicite en 3D décrit un objet ou une scène non pas en stockant directement sa surface ou ses volumes, mais en définissant une fonction mathématique qui permet de savoir, pour n’importe quel point de l’espace, s’il est à l’intérieur, à l’extérieur, ou sur la surface de l’objet, et parfois quelles sont ses propriétés (couleur, densité, etc.).
