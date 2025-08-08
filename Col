@@ -1,38 +1,17 @@
-def weights_to_probs_from_image(image_hw3):
+def _weights_and_probs_from_rgb(image_hw3):
     """
-    Convertit une image RGB [H,W,3] -> (w_map, p_map)
-      - w_map : {1,3,5} selon ta règle
-      - p_map : proba normalisée (somme = 1) pour l'échantillonnage pondéré
-    S'appuie sur compute_color_variance_map(image_hw3).
+    image_hw3: np.ndarray [H,W,3]
+    return: w_map [H,W] in {1,3,5}, p_map [H,W] normalisée (somme=1)
     """
-    # 1) carte normalisée [0..1]
-    norm = compute_color_variance_map(image_hw3, window_size=3)
-
-    # 2) discrétisation 1/3/5
+    norm = compute_color_variance_map(image_hw3, window_size=3)  # ta fonction
     w_map = np.where(norm >= 0.6, 5.0,
-                     np.where(norm >= 0.4, 3.0, 1.0)).astype(np.float32)
-
-    # 3) probas (normalisation)
+             np.where(norm >= 0.4, 3.0, 1.0)).astype(np.float32)
     s = float(w_map.sum())
-    if s <= 0:
-        H, W = w_map.shape
-        p_map = np.full((H, W), 1.0 / (H * W), dtype=np.float32)
-    else:
-        p_map = w_map / s
-
+    p_map = (w_map / s) if s > 0 else np.full(w_map.shape, 1.0 / w_map.size, dtype=np.float32)
     return w_map, p_map
 
 
-
 def generate_train_rays(dataset, arg_dict):    
-    """
-    Generate complete ray set based on training images in a dataset.
-
-    Returns:
-      all_train (dict) avec en plus:
-        - 'weights': [N] (float32, {1,3,5} aplatis, alignés avec les rayons)
-        - 'probs':   [N] (float32, somme=1, mêmes indices)
-    """
     use_view_dirs = arg_dict['model.ins.views']
     use_light_dirs = arg_dict['model.ins.light']
     el_adj = arg_dict['rend.unzoom']
@@ -42,27 +21,25 @@ def generate_train_rays(dataset, arg_dict):
         all_view_dirs = []
     if use_light_dirs:
         all_light_dirs = []
-    # NEW
-    all_weights, all_probs = [], []
+
+    # NEW: on accumule les probas par image pour fabriquer un index global pondéré
+    probs_all_images = []  # liste de vecteurs [H*W] pour chaque image
 
     for view_i in range(len(dataset['train_imgs'])):
-        # image peut être tf.Tensor ou np.ndarray
         img_tf_or_np = dataset['train_imgs'][view_i]
         img_np = img_tf_or_np.numpy() if isinstance(img_tf_or_np, tf.Tensor) else img_tf_or_np
-
         H, W, nbands = img_np.shape
         focals, poses = dataset['train_focals'], dataset['train_poses']
 
-        # Génération des rayons
         if el_adj:
-            el = dataset['train_view_dirs'][view_i][0, 1]
+            el = dataset['train_view_dirs'][view_i][0,1]
             rays_o, rays_d = get_rays_zoom(H, W, focals[view_i], poses[view_i], 1/np.sin(el))
         else:
             rays_o, rays_d = get_rays_zoom(H, W, focals[view_i], poses[view_i], 1.0)
 
         rays_o = tf.reshape(rays_o, [H, W, 3])
         rays_d = tf.reshape(rays_d, [H, W, 3])
-        values = img_tf_or_np  # garde le type d'origine (tf ou np)
+        values = dataset['train_imgs'][view_i]
 
         all_rays_o.append(rays_o)
         all_rays_d.append(rays_d)
@@ -73,17 +50,15 @@ def generate_train_rays(dataset, arg_dict):
         if use_light_dirs:
             all_light_dirs.append(tf.ones([H, W, 1]) @ dataset['train_light_dirs'][view_i])
 
-        # --- NEW: cartes poids/probas pour cette image (sur les 3 premiers canaux RGB) ---
+        # NEW: proba par image (d’après tes seuils 0.4/0.6 -> poids 3/5)
         if nbands < 3:
-            raise ValueError("L'image d'entraînement doit avoir au moins 3 canaux (RGB) pour la variance de couleur.")
+            raise ValueError("Besoin d'au moins 3 canaux (RGB) pour la carte de variance de couleur.")
         rgb_img = img_np[..., :3]
-        w_map, p_map = weights_to_probs_from_image(rgb_img)  # [H,W] chacun
+        _, p_map = _weights_and_probs_from_rgb(rgb_img)  # [H,W]
+        probs_all_images.append(p_map.reshape(-1))       # [H*W]
 
-        all_weights.append(tf.convert_to_tensor(w_map.reshape(-1), dtype=tf.float32))
-        all_probs.append(tf.convert_to_tensor(p_map.reshape(-1), dtype=tf.float32))
-
-    # Concat / reshape final
-    all_values = tf.reshape(tf.convert_to_tensor(all_values), [-1, nbands])
+    # reshape/concat classiques
+    all_values = tf.reshape(tf.convert_to_tensor(all_values), [-1, all_values[0].shape[-1]])
     all_rays_o = tf.reshape(tf.convert_to_tensor(all_rays_o), [-1, 3])
     all_rays_d = tf.reshape(tf.convert_to_tensor(all_rays_d), [-1, 3])
 
@@ -93,60 +68,36 @@ def generate_train_rays(dataset, arg_dict):
     if use_light_dirs:
         all_train['light_dirs'] = tf.reshape(tf.convert_to_tensor(all_light_dirs), [-1, 2])
 
-    # NEW: concat weights & probs sur tout le dataset
-    all_weights = tf.concat(all_weights, axis=0)  # [N]
-    all_probs = tf.concat(all_probs, axis=0)      # [N]
-    all_probs = all_probs / (tf.reduce_sum(all_probs) + 1e-8)
-
-    all_train['weights'] = all_weights
-    all_train['probs'] = all_probs
+    # NEW: on fabrique UNE SEULE PERMUTATION pondérée (de taille N) pour tout le training
+    probs_concat = np.concatenate(probs_all_images, axis=0)  # [N]
+    probs_concat = probs_concat / probs_concat.sum()
+    N = probs_concat.shape[0]
+    # Index pondéré avec remplacement: les zones 5/3 apparaissent plus souvent.
+    index_map = np.random.choice(N, size=N, replace=True, p=probs_concat).astype(np.int64)
+    # on le stocke (Tensor) pour que get_ray_batch puisse l’utiliser sans changer ta boucle
+    all_train['index_map'] = tf.convert_to_tensor(index_map)
 
     return all_train
 
 
-
-def get_ray_batch(rays, start=None, end=None, probs=None, N_rand=None, idx=None, replace=False):
+def get_ray_batch(rays, start, end):
+    """Retrieve subset of rays from start index to end index.
+       Si 'index_map' est présent, on applique le mapping pondéré.
     """
-    Récupère un sous-ensemble de rayons :
-      - mode slicing :   start/end (comportement historique)
-      - mode pondéré :   probs + N_rand  -> tirage selon p
-      - mode indices :   idx (np.ndarray d'indices explicites)
-
-    Args:
-      rays (dict): dict de tenseurs/arrays alignés en 1ère dimension
-      start, end: indices pour slicing (optionnel)
-      probs: tf.Tensor/np.ndarray shape [N], somme = 1 (optionnel)
-      N_rand: int, nb d’éléments à tirer quand probs est fourni (optionnel)
-      idx: np.ndarray d’indices (optionnel)
-      replace: bool, tirage avec remplacement (utile si tu veux sur-échantillonner)
-
-    Returns:
-      sub_rays (dict), idx_utilises (np.ndarray ou slice)
-    """
-    # 1) Choix des indices
-    if idx is None:
-        if probs is not None:
-            p = probs.numpy() if isinstance(probs, tf.Tensor) else probs
-            if N_rand is None:
-                raise ValueError("N_rand doit être fourni quand probs est spécifié.")
-            N = p.shape[0]
-            idx = np.random.choice(N, size=N_rand, replace=replace, p=p)
-        elif start is not None and end is not None:
-            idx = slice(start, end)
-        else:
-            raise ValueError("Spécifie soit (start,end), soit (probs,N_rand), soit idx.")
-
-    # 2) Gather / slicing
-    sub_rays = {}
-    for k, v in rays.items():
-        # on peut exclure 'probs' du batch s'il ne sert pas au rendu
-        if k in ('probs',):
-            continue
-        if isinstance(idx, slice):
-            sub_rays[k] = v[idx, ...]
-        else:
+    if 'index_map' in rays:
+        # mapping d’indices pondéré pré-calculé
+        imap = rays['index_map'].numpy() if isinstance(rays['index_map'], tf.Tensor) else rays['index_map']
+        sel = imap[start:end]
+        sub_rays = {}
+        for k, v in iter(rays.items()):
+            if k == 'index_map':   # on ne renvoie pas le mapping dans le batch
+                continue
             if isinstance(v, tf.Tensor):
-                sub_rays[k] = tf.gather(v, idx, axis=0)
+                sub_rays[k] = tf.gather(v, sel, axis=0)
             else:
-                sub_rays[k] = v[idx, ...]
-    return sub_rays, idx
+                sub_rays[k] = v[sel, ...]
+        return sub_rays
+    else:
+        # comportement d’origine
+        sub_rays = {k: v[start:end, ...] for k, v in iter(rays.items())}
+        return sub_rays
